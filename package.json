@@ -1,0 +1,20 @@
+{
+  "name": "nodejs-app",
+  "version": "1.0.0",
+  "description": "node js app",
+  "main": "app.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "esteban",
+  "license": "ISC",
+  "dependencies": {
+    "body-parser": "^1.16.1",
+    "ejs": "^2.5.6",
+    "express": "^4.14.1",
+    "lodash": "^3.10.1",
+    "mongoose": "^4.8.5",
+    "request": "^2.79.0",
+    "xml2js": "^0.4.17"
+  }
+}

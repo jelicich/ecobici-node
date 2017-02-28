@@ -2,7 +2,7 @@ var express = require('express');
 //var db = require('./config/db/connection');
 //var todoController = require('./controllers/todoController');
 var ecobici = require('./api/ecobici/lib/ecobici');
-var homeController = require('./controllers/homeController')
+var homeController = require('./controllers/homeController');
 var ecobiciController = require('./controllers/ecobiciController');
 var app = express();
 
@@ -19,10 +19,12 @@ app.use(express.static('./public'))
 homeController(app);
 
 //once the dataObj is loaded init ecobiciController
+
 ecobici(function (err, dataObj) {
   if (err) { console.log("An error has occurred: " + err); return; }
   console.log('recieved ecobici api');
-  ecobiciController(app, dataObj);
+  console.log(dataObj.withMoreBikes(3));
+  //ecobiciController(app, dataObj);
   // console.log(dataObj.data); returns general info about every station
   // console.log(dataObj.available()); returns available stations
   // console.log(dataObj.unavailable()); returns not available stations
@@ -32,6 +34,8 @@ ecobici(function (err, dataObj) {
   // console.log(dataObj.usageLevel()); returns overall usage level
 });
 
+
+
 //listen to port
-app.listen(3000);
-console.log('listening to port 3000');
+//app.listen(3000);
+//console.log('listening to port 3000');

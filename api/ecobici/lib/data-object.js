@@ -14,37 +14,37 @@ function DataObject(data) {
 // Return operational stations
 DataObject.prototype.available = function() {
   return  _.filter(this.data, function(item) {
-    return item.EstacionDisponible === 'SI';
+    return item.Estado === 'disponible';
   });
 },
 
 // Return non operational stations
 DataObject.prototype.unavailable = function() {
   return  _.filter(this.data, function(item) {
-    return item.EstacionDisponible !== 'SI';
+    return item.Estado !== 'disponible';
   });
 },
 
 // Return the n stations with more available bikes
 DataObject.prototype.withMoreBikes = function(n) {
-  var sorted = _.sortByOrder(this.available(), ['BicicletaDisponibles', 'AnclajesTotales', 'EstacionNombre'], ['desc', 'desc', 'asc']);
+  var sorted = _.sortByOrder(this.available(), ['CantidadBicicletas', 'Nombre'], ['desc', 'asc']);
   return _.take(sorted, n || 1);
 },
 
 // Return the n stations with least available bikes
-DataObject.prototype.withLessBikes = function(n) {
-  var sorted = _.sortByOrder(this.available(), ['BicicletaDisponibles', 'AnclajesTotales', 'EstacionNombre'], ['asc', 'desc', 'asc']);
+DataObject.prototype.withFewerBikes = function(n) {
+  var sorted = _.sortByOrder(this.available(), ['CantidadBicicletas', 'Nombre'], ['asc', 'asc']);
   return _.take(sorted, n || 1);
 },
 
 // Return stations with at least one bike
 DataObject.prototype.withBikes = function() {
   return  _.filter(this.available(), function(item) {
-    return item.BicicletaDisponibles > 0;
+    return item.CantidadBicicletas > 0;
   });
-},
-
+}
 // Return nearest stations
+/*
 DataObject.prototype.nearest = function(options, cb) {
   var geocoder = require('node-geocoder')('google', 'http'),
       geolib = require('geolib');
@@ -84,15 +84,18 @@ DataObject.prototype.nearest = function(options, cb) {
 
   }.bind(this));
 },
+*/
 
+/*
 // Return global average usage level
 DataObject.prototype.usageLevel = function() {
   var available = this.available();
 
   var availability = _.sum(available, function(item) {
-    return item.BicicletaDisponibles * 1.0 / item.AnclajesTotales;
+    return item.properties.BicicletaDisponibles * 1.0 / item.AnclajesTotales;
   }) / available.length;
 
   return 1 - availability;
 
 };
+*/

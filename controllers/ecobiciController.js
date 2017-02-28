@@ -9,13 +9,18 @@ const methods = {
     allStations: 'allStations',
     usage: 'usage'
 };
-const event = {
-  dataLoaded: 'dataLoaded'
-};
 
-module.exports = function(app, dataObject) {
+
+module.exports = EcobiciController;
+
+function EcobiciController(app, dataObject) {
+  this.dataObject = dataObject;
+
   app.post('/ecobici/:method', urlencodedParser, function(req, res){
     console.log('llego una post req de ' + req.url);
+
+    if(!dataObject) return;
+
     var jsonResp = {};
     var method = req.params.method;
     switch (method) {
@@ -33,4 +38,6 @@ module.exports = function(app, dataObject) {
     };
     res.json(jsonResp);
   });
-} //end exports
+}
+
+// Return operational stations

@@ -2,42 +2,52 @@ var bodyParser = require('body-parser');
 var events = require('events');
 var ecobici = require('../api/ecobici/lib/ecobici');
 
-var urlencodedParser = bodyParser.urlencoded({extend:false});
-var loaderEmitter = new events.EventEmitter();
-
+var urlencodedParser = bodyParser.urlencoded({extended:false});
+//var loaderEmitter = new events.EventEmitter();
+const timeOut = 30;
 const methods = {
     allStations: 'allStations',
     usage: 'usage'
 };
 
+var isWaiting = false;
+var interval;
 
 module.exports = EcobiciController;
 
-function EcobiciController(app, dataObject) {
-  this.dataObject = dataObject;
+function EcobiciController(app, io) {
+  io.on('connection', function(socket) {
+      console.log('client connected');
 
-  app.post('/ecobici/:method', urlencodedParser, function(req, res){
-    console.log('llego una post req de ' + req.url);
+      // ecobici(function(err,dataObj){
+      //   if (err) { console.log("An error has occurred: " + err); return; }
+      //   console.log('recieved ecobici api');
+      //   var data = dataObj.data;
+      //   socket.emit('messages', data);
+      //   isWaiting = false;
+      // })
+      getData();
 
-    if(!dataObject) return;
+      interval = setInterval(getData, timeOut * 1000);
 
-    var jsonResp = {};
-    var method = req.params.method;
-    switch (method) {
-      case methods.allStations:
-        //console.log(getAllStations());
-        jsonResp.status = 'ok';
-        jsonResp.set = dataObject.data;
-        break;
+      function getData(){
+        if(isWaiting) return;
+        isWaiting = true;
+        ecobici(function(err,dataObj){
+          if (err) { console.log("An error has occurred: " + err); return; }
+          console.log('recieved ecobici api');
+          var data = dataObj.data;
+          socket.emit('messages', data);
+          isWaiting = false;
+        });
+      };
 
-      case methods.usage:
-        jsonResp.status = 'ok';
-        jsonResp.set = dataObject.usageLevel();
+      socket.on('disconnect', function(){
+        console.log('cliente disconnected');
+        clearInterval(interval);
+      });
 
-      default:
-    };
-    res.json(jsonResp);
   });
-}
 
-// Return operational stations
+
+};

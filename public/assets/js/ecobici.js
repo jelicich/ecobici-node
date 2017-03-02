@@ -13,8 +13,6 @@ ecobici.Panel = {
 
 	showNotifications: function(data){},
 
-	runInterval: function(){},
-
 	getData: function(){}
 };
 
@@ -38,18 +36,27 @@ ecobici.DataManager = {
 	},
 
 	init: function(){
+
 		var t = this;
-		t.getAllStations('*');
-		t.getUsage();
+		//t.getAllStations();
+		//t.getUsage();
+		var socket = io.connect('http://localhost:3003', { 'forceNew': true });
+
+		socket.on('messages', function(data) {
+			console.log('data pushed from backend');
+			$(ecobici.DataManager).trigger(ecobici.Events.STATIONS_BY_STATUS_LOADED, [data]);
+		});
 	},
-	getAllStations: function(status){
+
+	/* // no need to use ajax, using websockets
+	getAllStations: function(){
 		var t = this;
 		if(!t.isWaiting.stationsByStatus){
 			t.isWaiting.stationsByStatus = true;
 			$.ajax({
 				method: "POST",
 				url: t.URL_SERVICE + 'allStations',
-				data: { method: "getAllStations", data: status },
+				//data: { method: "getAllStations", data: status },
 				success: function(r){
 					//console.log(r);
 					if(r.status == 'ok'){
@@ -61,35 +68,18 @@ ecobici.DataManager = {
 
 				},
 				error: function(r){
+					console.log(r);
 					$('body').append('<p class="error">Error al cargar la informacion</p>')
 					t.isWaiting.stationsByStatus = false;
+				},
+				complete: function(){
+					console.log('complete');
 				}
 			})
 		}
 	},
+	*/
 
-	getUsage: function(){
-		var t = this;
-		if(!t.isWaiting.usage){
-			t.isWaiting.usage = true;
-			$.ajax({
-				method: "POST",
-				url: t.URL_SERVICE + 'usage',
-				success: function(r){
-					//console.log(r);
-					if(r.status == 'ok'){
-						var data = r.set;
-						$(ecobici.DataManager).trigger(ecobici.Events.USAGE_LOADED, [data]);
-					}
-					t.isWaiting.usage = false;
-				},
-				error: function(r){
-					$('body').append('<p class="error">Error al cargar la informacion</p>')
-					t.isWaiting.usage = false;
-				}
-			})
-		}
-	}
 };
 
 /*---------*/
@@ -111,8 +101,6 @@ ecobici.TopPanel = $.extend(true, {}, ecobici.Panel, {
 		$(ecobici.DataManager).on(ecobici.Events.STATIONS_BY_STATUS_LOADED, function(event, data) {
 			t.updateBikesAvailable(data);
 		});
-
-		this.runInterval();
 
 		//events
 		$(window).on('resize', function(){
@@ -144,7 +132,7 @@ ecobici.TopPanel = $.extend(true, {}, ecobici.Panel, {
 		var yScale = d3.scale.linear()
 			.domain([
 					0,
-					d3.max(data, function(d){ return d.AnclajesTotales; })
+					d3.max(data, function(d){ return d.CantidadBicicletas; })
 				])
 			.range([height-padding,0]);
 
@@ -180,9 +168,23 @@ ecobici.TopPanel = $.extend(true, {}, ecobici.Panel, {
 		var spacing = (0.3 / 100) * width; //0.2%
 		var padding = 25;
 		var tooltip = d3.select('#graph-top-tooltip');
+		//colors
+		var colorFull = '#31a354';
+		var colorEmpty = '#a30919';
+		var colorNA = '#cccccc';
 
-		var limite = d3.min(data, function(d){ return d.AnclajesTotales; });
-		var colorPicker = d3.scale.linear().domain([0, limite]).range([d3.rgb('#a30919'), d3.rgb('#31a354')]);
+
+		var limite = d3.max(data, function(d){ return d.CantidadBicicletas; });
+		var colorPicker = d3.scale.linear().domain([0, limite]).range([d3.rgb(colorEmpty), d3.rgb(colorFull)]);
+		var setColor = function(d) {
+			var color;
+			if(d.Estado != 'disponible') {
+				color = colorNA;
+			} else {
+				color = colorPicker(d.CantidadBicicletas);
+			}
+			return color;
+		}
 
 		//scales
 		var xScale = d3.scale.ordinal()
@@ -198,7 +200,7 @@ ecobici.TopPanel = $.extend(true, {}, ecobici.Panel, {
 		var yScale = d3.scale.linear()
 			.domain([
 					0,
-					d3.max(data, function(d){ return d.AnclajesTotales; })
+					d3.max(data, function(d){ return d.CantidadBicicletas; })
 				])
 			.range([height-padding,0]);
 
@@ -225,16 +227,18 @@ ecobici.TopPanel = $.extend(true, {}, ecobici.Panel, {
 	    	.attr({
 	    		'class': 'bar',
 	    		x: function(d,i) { return (i * ((width-padding) / data.length)) + padding + spacing; },
-	    		y: function(d) { return yScale(d.BicicletaDisponibles); },
-	    		height: function(d) { return height - padding - yScale(d.BicicletaDisponibles); },
+	    		y: function(d) { return yScale(d.CantidadBicicletas); },
+	    		height: function(d) { return height - padding - yScale(d.CantidadBicicletas); },
 	    		width: (width / data.length) - spacing,
-	    		fill: function(d){ return colorPicker(d.BicicletaDisponibles)}
+	    		fill: function(d){
+	    			return setColor(d);
+	    		}
 	    	})
 			.on('mouseover',function(d){
-				tooltip.select('.title').html(d.EstacionNombre);
+				tooltip.select('.title').html(d.Nombre);
 
-				var color = colorPicker(d.BicicletaDisponibles);
-				tooltip.select('.content').html('<ul><li><strong style="color:'+color+'">Cantidad: ' + d.BicicletaDisponibles + '</strong></li><li>Estacion Disponible: ' + d.EstacionDisponible + '</li><li>Anclajes Disponibles: ' + d.AnclajesDisponibles + '</li></ul>');
+				var color = colorPicker(d.CantidadBicicletas);
+				tooltip.select('.content').html('<ul><li><strong style="color:'+color+'">Cantidad: ' + d.CantidadBicicletas + '</strong></li><li>Estado: ' + d.Estado + '</li><li>Anclajes Disponibles: ' + /*d.AnclajesDisponibles*/ + '</li></ul>');
 
 				// tooltip.style('left', (d3.event.pageX)+'px')
 				// 	.style('top', (d3.event.pageY - 68)+'px');
@@ -257,10 +261,13 @@ ecobici.TopPanel = $.extend(true, {}, ecobici.Panel, {
 	    	.duration(500)
 	    	.attr({
 	    		x: function(d,i) { return (i * ((width-padding) / data.length)) + padding + spacing; },
-	    		y: function(d) { return yScale(d.BicicletaDisponibles); },
-	    		height: function(d) { return height - padding - yScale(d.BicicletaDisponibles); },
+	    		y: function(d) { return yScale(d.CantidadBicicletas); },
+	    		height: function(d) { return height - padding - yScale(d.CantidadBicicletas); },
 	    		width: (width / data.length) - spacing,
-	    		fill: function(d){ return colorPicker(d.BicicletaDisponibles)}
+	    		fill: function(d){
+	    			//return colorPicker(d.CantidadBicicletas)
+	    			return setColor(d)
+	    		}
 	    	});
 
 		//move the axis
@@ -279,13 +286,6 @@ ecobici.TopPanel = $.extend(true, {}, ecobici.Panel, {
 		// 		return '#31a354';
 		// 	}
 		// }
-	},
-	runInterval: function(){
-		var t = this;
-		t.interval = setInterval(function(){
-			ecobici.DataManager.getAllStations(t.status);
-			//console.log('Update request')
-		},t.UPDATE_TIME);
 	},
 	showNotifications: function(data){
 		//TODO
@@ -311,9 +311,6 @@ ecobici.RightPanel = $.extend(true, {}, ecobici.Panel, {
 			t.updateMap(data);
 		});
 
-
-
-		//this.runInterval();
 	},
 	loadData: function(callback){
 		//uses the same data as TopPanel
@@ -489,7 +486,7 @@ ecobici.RightPanel = $.extend(true, {}, ecobici.Panel, {
 			//ecobici.RightPanel.renderMap(data);
 
 		}
-		var limite = d3.min(data, function(d){ return d.AnclajesTotales; });
+		var limite = d3.min(data, function(d){ return d.CantidadBicicletas; });
 		var colorPicker = d3.scale.linear().domain([0, limite]).range([d3.rgb('#a30919'), d3.rgb('#31a354')]);
 
 		for(var i = 0; i < data.length; i++){
@@ -723,7 +720,7 @@ ecobici.LeftPanel = $.extend(true, {}, ecobici.Panel, {
 	$(document).ready(function(){
 		ecobici.DataManager.init();
 		ecobici.TopPanel.init();
-		ecobici.RightPanel.init();
-		ecobici.LeftPanel.init();
+		//ecobici.RightPanel.init();
+		//ecobici.LeftPanel.init();
 	})
 };

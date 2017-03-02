@@ -5,6 +5,8 @@ var ecobici = require('./api/ecobici/lib/ecobici');
 var homeController = require('./controllers/homeController');
 var ecobiciController = require('./controllers/ecobiciController');
 var app = express();
+var server = app.listen(3003);
+var io = require('socket.io')(server);
 
 //connect to db
 //db.connect();
@@ -17,25 +19,10 @@ app.use(express.static('./public'))
 
 //fire controllers
 homeController(app);
-
-//once the dataObj is loaded init ecobiciController
-
-ecobici(function (err, dataObj) {
-  if (err) { console.log("An error has occurred: " + err); return; }
-  console.log('recieved ecobici api');
-  console.log(dataObj.withMoreBikes(3));
-  //ecobiciController(app, dataObj);
-  // console.log(dataObj.data); returns general info about every station
-  // console.log(dataObj.available()); returns available stations
-  // console.log(dataObj.unavailable()); returns not available stations
-  // console.log(dataObj.withMoreBikes(3)); returns 3 stations with more bikes
-  // console.log(dataObj.withLessBikes(3)); returns 3 stations with fewer bikes
-  // console.log(dataObj.withBikes()); returns stations with at least 1 bikes
-  // console.log(dataObj.usageLevel()); returns overall usage level
-});
+ecobiciController(app, io)
 
 
 
 //listen to port
-//app.listen(3000);
-//console.log('listening to port 3000');
+//app.listen(3003);
+console.log('listening to port 3003');

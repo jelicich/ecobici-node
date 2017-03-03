@@ -1,12 +1,13 @@
 var express = require('express');
 //var db = require('./config/db/connection');
 //var todoController = require('./controllers/todoController');
-var ecobici = require('./api/ecobici/lib/ecobici');
-var homeController = require('./controllers/homeController');
-var ecobiciController = require('./controllers/ecobiciController');
 var app = express();
 var server = app.listen(3003);
 var io = require('socket.io')(server);
+
+var ecobici = require('./backend/api/ecobici/lib/ecobici');
+var homeController = require('./backend/controllers/homeController');
+var ecobiciController = require('./backend/controllers/ecobiciController');
 
 //connect to db
 //db.connect();
@@ -15,11 +16,11 @@ var io = require('socket.io')(server);
 app.set('view engine', 'ejs');
 
 //static files css and js to be served
-app.use(express.static('./public'))
+app.use(express.static(__dirname + '/public'))
 
 //fire controllers
 homeController(app);
-ecobiciController(app, io)
+ecobiciController(app, io);
 
 
 

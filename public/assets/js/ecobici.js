@@ -1,11 +1,5 @@
-/*---------*/
-/*NAMESPACE*/
-/*---------*/
 var ecobici = {};
 
-/*--------------*/
-/*ABSTRACT CLASS*/
-/*--------------*/
 ecobici.Panel = {
 	data : null,
 
@@ -16,17 +10,12 @@ ecobici.Panel = {
 	getData: function(){}
 };
 
-/*------*/
-/*EVENTS*/
-/*------*/
 ecobici.Events = {
 	STATIONS_BY_STATUS_LOADED: 'stationsByStatusLoaded',
-	USAGE_LOADED: 'usageLoaded'
+	USAGE_LOADED: 'usageLoaded',
+	DATA_RECIEVED: 'dataRecieved'
 };
 
-/*------------*/
-/*DATA MANAGER*/
-/*------------*/
 ecobici.DataManager = {
 	//URL_SERVICE: './service/ecobiciService.php',
 	URL_SERVICE: '/ecobici/',
@@ -44,8 +33,9 @@ ecobici.DataManager = {
 
 		socket.on('messages', function(data) {
 			console.log('data pushed from backend');
-			$(ecobici.DataManager).trigger(ecobici.Events.STATIONS_BY_STATUS_LOADED, [data]);
+			$(ecobici.DataManager).trigger(ecobici.Events.DATA_RECIEVED, data);
 		});
+
 	},
 
 	/* // no need to use ajax, using websockets
@@ -82,222 +72,179 @@ ecobici.DataManager = {
 
 };
 
-/*---------*/
-/*TOP PANEL*/
-/*---------*/
-ecobici.TopPanel = $.extend(true, {}, ecobici.Panel, {
-
-	UPDATE_TIME: 5000, //ms
-	data: null,
-	isWaiting: false,
-	interval: null,
-	isRendered: false,
-	status: '*',
+ecobici.LeftPanel = $.extend(true, {}, ecobici.Panel, {
+	isUsageRendered: false,
 
 	init: function(){
-		console.log('TopPanel init');
+		console.log('LeftPanel init');
 		var t = this;
 
-		$(ecobici.DataManager).on(ecobici.Events.STATIONS_BY_STATUS_LOADED, function(event, data) {
-			t.updateBikesAvailable(data);
+		$(ecobici.DataManager).on(ecobici.Events.DATA_RECIEVED, function(event, data) {
+			var data = data.usage
+			t.updateUsage(data);
 		});
-
-		//events
-		$(window).on('resize', function(){
-			t.updateBikesAvailable(ecobici.TopPanel.getData())
-		})
 	},
-	setUpTopChart: function(d){
+	renderUsage: function(data){
+		console.log(data);
 		var t = this;
-		var data = d;
-		var $container = $('#graph-top');
-		var container = '#graph-top';
+		var $container = $('#graph-bottom-left-1');
+		var container = '#graph-bottom-left-1';
 		var margin = {top: 10, right: 10, bottom: 10, left: 10};
 		var width = $container.width();
 		var height = $container.height();
 		var spacing = 5;
 		var padding = 25;
+		var transitionDuration = 300;
+		var data = [
+			{
+				name: 'Usadas',
+				value: data
+			},
+			{
+				name: 'Disponibles',
+				value: 1 - data
+			}
+		];
 
-		//scales
-		var xScale = d3.scale.ordinal()
-			.domain(['Estaciones'])
-		    .rangeRoundBands([0, width - padding - 1], .1);
+		/** DONUT CHART **/
+		var radius = Math.min(width, height) / 3;
+		var outerRadius = radius - radius * 0.07;
+		var innerRadius = radius - radius * 0.20;
+		var archWidth =  radius * 0.20 - radius * 0.07;
 
-		//var xTicks = xScale.domain().filter(function(d, i) { debugger; return d.properties.Nombre });
-		var xAxisGen = d3.svg.axis()
-		    .scale(xScale)
-		    //.tickValues(xTicks)
-		    .orient("bottom");
+		var color = d3.scale.ordinal()
+		    //.range([color1, color2]);
+				.range([d3.rgb('#a30919'), d3.rgb('#31a354')]);
 
-		var yScale = d3.scale.linear()
-			.domain([
-					0,
-					d3.max(data, function(d){ return d.CantidadBicicletas; })
-				])
-			.range([height-padding,0]);
+		var canvas = d3.select(container)
+					.append('svg')
+					.attr('id', 'svg-usage')
+					.attr('width', width)
+				  .attr('height', height);
 
-		var yAxisGen = d3.svg.axis()
-				.scale(yScale)
-				.orient('left');
+		var arc = d3.svg.arc()
+		    .outerRadius(outerRadius)
+		    .innerRadius(innerRadius);
 
-		var svg = d3.select(container)
-			.append('svg')
-			.attr('width', width)
-			.attr('height', height);
+		var pie = d3.layout.pie()
+		    .sort(null)
+		    .value(function(d) { return d.value; });
 
-		var xAxis = svg.append('g').call(xAxisGen)
-			.attr('class','x-axis')
-			.attr('transform', 'translate(' + padding + ',' + (height-padding) +')');
+		var svg = d3.select('svg#svg-usage')
+		  	.append('g')
+		    .attr('transform', 'translate(' + width / 2 + ',' + height / 2 + ')');
 
-		var yAxis = svg.append('g').call(yAxisGen)
-			.attr('class','y-axis')
-			.attr('transform', 'translate(' + padding +',0)'); //g is a group like a div to put elements in
+		var g = svg.selectAll('.arc')
+		      .data(pie(data))
+		    .enter().append('g')
+		      .attr('class', 'arc');
 
-		this.isRendered = true;
+		var pathArc = g.append('path').data(data);
+
+		pathArc.transition()
+            .duration(transitionDuration)
+            .attr('fill', function(d){
+                return color(d.value);
+            })
+            .attrTween('d', arc2Tween);
+
+						//TODO PRINT DONUT
+		//pathArc. TODO TODO TODO TODO
+
+		//text
+
+		var total = data.value;
+
+		g.append('text')
+	      .text(function(d) {
+	      	var percentage = (d.value * 100).toFixed(2);
+	      	return percentage + '%';
+	      })
+	      .attr('transform', function(d,i) {
+	      	var bbox = this.getBBox();
+            var textwidth = bbox.width;
+	      	var x = (i==0) ? width/2 - textwidth - padding : -width/2 + padding;
+	      	return 'translate(' + x + ' , ' + (radius + 40) + ')';
+	      })
+	      .attr('dy', '.35em');
+
+	    g.append('text')
+	      .text(function(d) { return d.data.name; })
+	      .attr('font-weight','bold')
+	      .attr('transform', function(d,i) {
+	      	var bbox = this.getBBox();
+            var textwidth = bbox.width;
+	      	var x = (i==0) ? width/2 - textwidth - padding : -width/2 + padding;
+	      	return 'translate(' + x + ' , ' + (radius + 20) + ')';
+	      })
+	      .attr('dy', '.35em')
+	      .attr('class','device-name')
+	      .style('fill', function(d) { return color(d.value); });
+
+
+			// custom tween function used by the attrTween method to draw the intermediary steps.
+      // attrTween will actually pass the data, index, and attribute value of the current
+      // DOM object to this function, but for our purposes, we can omit the attribute value
+      function arc2Tween(d, indx) {
+          // this will return an interpolater function that returns values between
+          //'this._current' and 'd' given an input between 0 and 1
+          var interp = d3.interpolate(this._current, d.value);
+
+          // update this._current to match the new value
+          this._current = d.value;
+
+          // returns a function that attrTween calls with a time input between 0-1; 0 as the
+          // start time, and 1 being the end of the animation
+          return function(t) {
+              // use the time to get an interpolated value`(between this._current and d)
+
+              //d.value = interp(t) // this will overwrite the original object
+              //TODO merge value with original object into a new one insted of the following
+              var obj = {
+                  name: d.name,
+                  value : interp(t)
+              }
+
+              // pass this new information to the accessor
+              // function to calculate the path points.
+
+              // n.b. we need to manually pass along the
+              //  index to drawArc so since the calculation of
+              //  the radii depend on knowing the index.
+              return arc(obj, indx);
+          }
+      };
 	},
-	updateBikesAvailable: function(data){
-		if(!ecobici.TopPanel.isRendered){
-			ecobici.TopPanel.setUpTopChart(data);
+	updateUsage: function(data){
+		var t = this;
+		if(!ecobici.LeftPanel.isUsageRendered){
+			ecobici.LeftPanel.renderUsage(data);
 		}
-		//var data = data.features;
-		var $container = $('#graph-top');
-		var container = '#graph-top';
-		var margin = {top: 10, right: 10, bottom: 10, left: 10};
+		return;
+		var $container = $('#graph-bottom-left-1');
 		var width = $container.width();
 		var height = $container.height();
-		var spacing = (0.3 / 100) * width; //0.2%
-		var padding = 25;
-		var tooltip = d3.select('#graph-top-tooltip');
-		//colors
-		var colorFull = '#31a354';
-		var colorEmpty = '#a30919';
-		var colorNA = '#cccccc';
 
+		var radius = Math.min(width, height) / 3;
+		var outerRadius = radius - radius * 0.07;
+		var innerRadius = radius - radius * 0.20;
+		var archWidth =  radius * 0.20 - radius * 0.07;
 
-		var limite = d3.max(data, function(d){ return d.CantidadBicicletas; });
-		var colorPicker = d3.scale.linear().domain([0, limite]).range([d3.rgb(colorEmpty), d3.rgb(colorFull)]);
-		var setColor = function(d) {
-			var color;
-			if(d.Estado != 'disponible') {
-				color = colorNA;
-			} else {
-				color = colorPicker(d.CantidadBicicletas);
-			}
-			return color;
-		}
+		var arc = d3.svg.arc()
+		    .outerRadius(outerRadius)
+		    .innerRadius(innerRadius);
 
-		//scales
-		var xScale = d3.scale.ordinal()
-			.domain(['Estaciones'])
-		    .rangeRoundBands([0, width - padding - 1], .1);
+		var svg = d3.select('svg#svg-usage');
 
-		//var xTicks = xScale.domain().filter(function(d, i) { debugger; return d.properties.Nombre });
-		var xAxisGen = d3.svg.axis()
-		    .scale(xScale)
-		    //.tickValues(xTicks)
-		    .orient("bottom");
+		var path = svg.selectAll('path');
 
-		var yScale = d3.scale.linear()
-			.domain([
-					0,
-					d3.max(data, function(d){ return d.CantidadBicicletas; })
-				])
-			.range([height-padding,0]);
-
-		var yAxisGen = d3.svg.axis()
-				.scale(yScale)
-				.orient('left');
-
-		var svg = d3.select(container).select('svg');
-
-		//set size of svg so it works when it resizes the window
-		svg.attr('width', width)
-			.attr('height', height);
-
-		//set attr transform so it works when it resizes the window
-		var xAxis = svg.selectAll('g.x-axis').call(xAxisGen).attr('transform', 'translate(' + padding + ',' + (height-padding) +')');;
-		var yAxis = svg.selectAll('g.y-axis').call(yAxisGen);
-		//debugger;
-
-		var bar = svg.selectAll('.bar')
-            .data(data);
-
-	    // new data:
-	    bar.enter().append('rect')
-	    	.attr({
-	    		'class': 'bar',
-	    		x: function(d,i) { return (i * ((width-padding) / data.length)) + padding + spacing; },
-	    		y: function(d) { return yScale(d.CantidadBicicletas); },
-	    		height: function(d) { return height - padding - yScale(d.CantidadBicicletas); },
-	    		width: (width / data.length) - spacing,
-	    		fill: function(d){
-	    			return setColor(d);
-	    		}
-	    	})
-			.on('mouseover',function(d){
-				tooltip.select('.title').html(d.Nombre);
-
-				var color = colorPicker(d.CantidadBicicletas);
-				tooltip.select('.content').html('<ul><li><strong style="color:'+color+'">Cantidad: ' + d.CantidadBicicletas + '</strong></li><li>Estado: ' + d.Estado + '</li><li>Anclajes Disponibles: ' + /*d.AnclajesDisponibles*/ + '</li></ul>');
-
-				// tooltip.style('left', (d3.event.pageX)+'px')
-				// 	.style('top', (d3.event.pageY - 68)+'px');
-
-				tooltip.transition()
-					.duration(200)
-					.style('opacity',.85);
-			})
-			.on('mouseout',function(d){
-				tooltip.transition()
-					.duration(400)
-					.style('opacity',0)
-			});
-
-	    // removed data:
-	    bar.exit().remove();
-
-	    // updated data:
-	    bar.transition()
-	    	.duration(500)
-	    	.attr({
-	    		x: function(d,i) { return (i * ((width-padding) / data.length)) + padding + spacing; },
-	    		y: function(d) { return yScale(d.CantidadBicicletas); },
-	    		height: function(d) { return height - padding - yScale(d.CantidadBicicletas); },
-	    		width: (width / data.length) - spacing,
-	    		fill: function(d){
-	    			//return colorPicker(d.CantidadBicicletas)
-	    			return setColor(d)
-	    		}
-	    	});
-
-		//move the axis
-		$('g.x-axis',$container).appendTo($container.find('svg'));
-		$('g.y-axis',$container).appendTo($container.find('svg'));
-
-
-		// function _colorPicker(v) {
-		// 	if(v<3) {
-		// 		return '#ff0000';
-		// 	} else if(v>= 3 && v<5) {
-		// 		return '#fe9929';
-		// 	} else if(v>=5 && v<15) {
-		// 		return '#bdbdbd';
-		// 	} else if(v>=15) {
-		// 		return '#31a354';
-		// 	}
-		// }
+		path.data(data)
+			.enter()
+			.attr('d', arc)
+			.style('fill', function(d) { return color(d.value); });
 	},
-	showNotifications: function(data){
-		//TODO
-	},
-	getData: function(){
-		return this.data;
-	}
 });
 
-/*-----------*/
-/*RIGHT PANEL*/
-/*-----------*/
 ecobici.RightPanel = $.extend(true, {}, ecobici.Panel, {
 	data : null,
 	isRendered: false,
@@ -306,7 +253,7 @@ ecobici.RightPanel = $.extend(true, {}, ecobici.Panel, {
 		console.log('RightPanel init');
 		var t = this;
 
-		$(ecobici.DataManager).on(ecobici.Events.STATIONS_BY_STATUS_LOADED, function(event, data) {
+		$(ecobici.DataManager).on(ecobici.Events.DATA_RECIEVED, function(event, data) {
 			t.data = data;
 			t.updateMap(data);
 		});
@@ -544,183 +491,223 @@ ecobici.RightPanel = $.extend(true, {}, ecobici.Panel, {
 	getData: function(){}
 });
 
-/*-----*/
-/* LEFT PANEL */
-/*----*/
+/*---------*/
+/*TOP PANEL*/
+/*---------*/
+ecobici.TopPanel = $.extend(true, {}, ecobici.Panel, {
 
-ecobici.LeftPanel = $.extend(true, {}, ecobici.Panel, {
-	isUsageRendered: false,
+	UPDATE_TIME: 5000, //ms
+	data: null,
+	isWaiting: false,
+	interval: null,
+	isRendered: false,
+	status: '*',
 
 	init: function(){
-		console.log('LeftPanel init');
+		console.log('TopPanel init');
 		var t = this;
 
-		$(ecobici.DataManager).on(ecobici.Events.USAGE_LOADED, function(event, data) {
-			t.updateUsage(data);
+		$(ecobici.DataManager).on(ecobici.Events.DATA_RECIEVED, function(event, data) {
+			var data = data.stations;
+			t.updateBikesAvailable(data);
 		});
+
+		//events
+		$(window).on('resize', function(){
+			t.updateBikesAvailable(ecobici.TopPanel.getData())
+		})
 	},
-	renderUsage: function(data){
+	setUpTopChart: function(d){
 		var t = this;
-		var $container = $('#graph-bottom-left-1');
-		var container = '#graph-bottom-left-1';
+		var data = d;
+		var $container = $('#graph-top');
+		var container = '#graph-top';
 		var margin = {top: 10, right: 10, bottom: 10, left: 10};
 		var width = $container.width();
 		var height = $container.height();
 		var spacing = 5;
 		var padding = 25;
-		var transitionDuration = 300;
-		var data = [
-			{
-				name: 'Usadas',
-				value: data
-			},
-			{
-				name: 'Disponibles',
-				value: 1 - data
-			}
-		];
 
-		/** DONUT CHART **/
-		var radius = Math.min(width, height) / 3;
-		var outerRadius = radius - radius * 0.07;
-		var innerRadius = radius - radius * 0.20;
-		var archWidth =  radius * 0.20 - radius * 0.07;
+		//scales
+		var xScale = d3.scale.ordinal()
+			.domain(['Estaciones'])
+		    .rangeRoundBands([0, width - padding - 1], .1);
 
-		var color = d3.scale.ordinal()
-		    //.range([color1, color2]);
-				.range([d3.rgb('#a30919'), d3.rgb('#31a354')]);
+		//var xTicks = xScale.domain().filter(function(d, i) { debugger; return d.properties.Nombre });
+		var xAxisGen = d3.svg.axis()
+		    .scale(xScale)
+		    //.tickValues(xTicks)
+		    .orient("bottom");
 
-		var canvas = d3.select(container)
-					.append('svg')
-					.attr('id', 'svg-usage')
-					.attr('width', width)
-				  .attr('height', height);
+		var yScale = d3.scale.linear()
+			.domain([
+					0,
+					d3.max(data, function(d){ return d.CantidadBicicletas; })
+				])
+			.range([height-padding,0]);
 
-		var arc = d3.svg.arc()
-		    .outerRadius(outerRadius)
-		    .innerRadius(innerRadius);
+		var yAxisGen = d3.svg.axis()
+				.scale(yScale)
+				.orient('left');
 
-		var pie = d3.layout.pie()
-		    .sort(null)
-		    .value(function(d) { return d.value; });
+		var svg = d3.select(container)
+			.append('svg')
+			.attr('width', width)
+			.attr('height', height);
 
-		var svg = d3.select('svg#svg-usage')
-		  	.append('g')
-		    .attr('transform', 'translate(' + width / 2 + ',' + height / 2 + ')');
+		var xAxis = svg.append('g').call(xAxisGen)
+			.attr('class','x-axis')
+			.attr('transform', 'translate(' + padding + ',' + (height-padding) +')');
 
-		var g = svg.selectAll('.arc')
-		      .data(pie(data))
-		    .enter().append('g')
-		      .attr('class', 'arc');
+		var yAxis = svg.append('g').call(yAxisGen)
+			.attr('class','y-axis')
+			.attr('transform', 'translate(' + padding +',0)'); //g is a group like a div to put elements in
 
-		var pathArc = g.append('path');
-
-		pathArc.transition()
-            .duration(transitionDuration)
-            .attr('fill', function(d){
-                return color(d.value);
-            })
-            .attrTween('d', arc2Tween);
-
-
-		//text
-
-		var total = data.value;
-
-		g.append('text')
-	      .text(function(d) {
-	      	var percentage = (d.value * 100).toFixed(2);
-	      	return percentage + '%';
-	      })
-	      .attr('transform', function(d,i) {
-	      	var bbox = this.getBBox();
-            var textwidth = bbox.width;
-	      	var x = (i==0) ? width/2 - textwidth - padding : -width/2 + padding;
-	      	return 'translate(' + x + ' , ' + (radius + 40) + ')';
-	      })
-	      .attr('dy', '.35em');
-
-	    g.append('text')
-	      .text(function(d) { return d.data.name; })
-	      .attr('font-weight','bold')
-	      .attr('transform', function(d,i) {
-	      	var bbox = this.getBBox();
-            var textwidth = bbox.width;
-	      	var x = (i==0) ? width/2 - textwidth - padding : -width/2 + padding;
-	      	return 'translate(' + x + ' , ' + (radius + 20) + ')';
-	      })
-	      .attr('dy', '.35em')
-	      .attr('class','device-name')
-	      .style('fill', function(d) { return color(d.value); });
-
-
-			// custom tween function used by the attrTween method to draw the intermediary steps.
-      // attrTween will actually pass the data, index, and attribute value of the current
-      // DOM object to this function, but for our purposes, we can omit the attribute value
-      function arc2Tween(d, indx) {
-          // this will return an interpolater function that returns values between
-          //'this._current' and 'd' given an input between 0 and 1
-          var interp = d3.interpolate(this._current, d.value);
-
-          // update this._current to match the new value
-          this._current = d.value;
-
-          // returns a function that attrTween calls with a time input between 0-1; 0 as the
-          // start time, and 1 being the end of the animation
-          return function(t) {
-              // use the time to get an interpolated value`(between this._current and d)
-
-              //d.value = interp(t) // this will overwrite the original object
-              //TODO merge value with original object into a new one insted of the following
-              var obj = {
-                  name: d.name,
-                  value : interp(t)
-              }
-
-              // pass this new information to the accessor
-              // function to calculate the path points.
-
-              // n.b. we need to manually pass along the
-              //  index to drawArc so since the calculation of
-              //  the radii depend on knowing the index.
-              return arc(obj, indx);
-          }
-      };
+		this.isRendered = true;
 	},
-	updateUsage: function(data){
-		var t = this;
-		if(!ecobici.LeftPanel.isUsageRendered){
-			ecobici.LeftPanel.renderUsage(data);
+	updateBikesAvailable: function(data){
+		if(!ecobici.TopPanel.isRendered){
+			ecobici.TopPanel.setUpTopChart(data);
 		}
-		var $container = $('#graph-bottom-left-1');
+		//var data = data.features;
+		var $container = $('#graph-top');
+		var container = '#graph-top';
+		var margin = {top: 10, right: 10, bottom: 10, left: 10};
 		var width = $container.width();
 		var height = $container.height();
+		var spacing = (0.3 / 100) * width; //0.2%
+		var padding = 25;
+		var tooltip = d3.select('#graph-top-tooltip');
+		//colors
+		var colorFull = '#31a354';
+		var colorEmpty = '#a30919';
+		var colorNA = '#cccccc';
 
-		var radius = Math.min(width, height) / 3;
-		var outerRadius = radius - radius * 0.07;
-		var innerRadius = radius - radius * 0.20;
-		var archWidth =  radius * 0.20 - radius * 0.07;
 
-		var arc = d3.svg.arc()
-		    .outerRadius(outerRadius)
-		    .innerRadius(innerRadius);
+		var limite = d3.max(data, function(d){ return d.CantidadBicicletas; });
+		var colorPicker = d3.scale.linear().domain([0, limite]).range([d3.rgb(colorEmpty), d3.rgb(colorFull)]);
+		var setColor = function(d) {
+			var color;
+			if(d.Estado != 'disponible') {
+				color = colorNA;
+			} else {
+				color = colorPicker(d.CantidadBicicletas);
+			}
+			return color;
+		}
 
-		var svg = d3.select('svg#svg-usage');
+		//scales
+		var xScale = d3.scale.ordinal()
+			.domain(['Estaciones'])
+		    .rangeRoundBands([0, width - padding - 1], .1);
 
-		var path = svg.selectAll('path');
+		//var xTicks = xScale.domain().filter(function(d, i) { debugger; return d.properties.Nombre });
+		var xAxisGen = d3.svg.axis()
+		    .scale(xScale)
+		    //.tickValues(xTicks)
+		    .orient("bottom");
 
-		path.data(data)
-			.enter()
-			.attr('d', arc)
-			.style('fill', function(d) { return color(d.value); });
+		var yScale = d3.scale.linear()
+			.domain([
+					0,
+					d3.max(data, function(d){ return d.CantidadBicicletas; })
+				])
+			.range([height-padding,0]);
+
+		var yAxisGen = d3.svg.axis()
+				.scale(yScale)
+				.orient('left');
+
+		var svg = d3.select(container).select('svg');
+
+		//set size of svg so it works when it resizes the window
+		svg.attr('width', width)
+			.attr('height', height);
+
+		//set attr transform so it works when it resizes the window
+		var xAxis = svg.selectAll('g.x-axis').call(xAxisGen).attr('transform', 'translate(' + padding + ',' + (height-padding) +')');;
+		var yAxis = svg.selectAll('g.y-axis').call(yAxisGen);
+		//debugger;
+
+		var bar = svg.selectAll('.bar')
+            .data(data);
+
+	    // new data:
+	    bar.enter().append('rect')
+	    	.attr({
+	    		'class': 'bar',
+	    		x: function(d,i) { return (i * ((width-padding) / data.length)) + padding + spacing; },
+	    		y: function(d) { return yScale(d.CantidadBicicletas); },
+	    		height: function(d) { return height - padding - yScale(d.CantidadBicicletas); },
+	    		width: (width / data.length) - spacing,
+	    		fill: function(d){
+	    			return setColor(d);
+	    		}
+	    	})
+			.on('mouseover',function(d){
+				tooltip.select('.title').html(d.Nombre);
+
+				var color = colorPicker(d.CantidadBicicletas);
+				tooltip.select('.content').html('<ul><li><strong style="color:'+color+'">Cantidad: ' + d.CantidadBicicletas + '</strong></li><li>Estado: ' + d.Estado + '</li><li>Anclajes Disponibles: ' + /*d.AnclajesDisponibles*/ + '</li></ul>');
+
+				// tooltip.style('left', (d3.event.pageX)+'px')
+				// 	.style('top', (d3.event.pageY - 68)+'px');
+
+				tooltip.transition()
+					.duration(200)
+					.style('opacity',.85);
+			})
+			.on('mouseout',function(d){
+				tooltip.transition()
+					.duration(400)
+					.style('opacity',0)
+			});
+
+	    // removed data:
+	    bar.exit().remove();
+
+	    // updated data:
+	    bar.transition()
+	    	.duration(500)
+	    	.attr({
+	    		x: function(d,i) { return (i * ((width-padding) / data.length)) + padding + spacing; },
+	    		y: function(d) { return yScale(d.CantidadBicicletas); },
+	    		height: function(d) { return height - padding - yScale(d.CantidadBicicletas); },
+	    		width: (width / data.length) - spacing,
+	    		fill: function(d){
+	    			//return colorPicker(d.CantidadBicicletas)
+	    			return setColor(d)
+	    		}
+	    	});
+
+		//move the axis
+		$('g.x-axis',$container).appendTo($container.find('svg'));
+		$('g.y-axis',$container).appendTo($container.find('svg'));
+
+
+		// function _colorPicker(v) {
+		// 	if(v<3) {
+		// 		return '#ff0000';
+		// 	} else if(v>= 3 && v<5) {
+		// 		return '#fe9929';
+		// 	} else if(v>=5 && v<15) {
+		// 		return '#bdbdbd';
+		// 	} else if(v>=15) {
+		// 		return '#31a354';
+		// 	}
+		// }
 	},
+	showNotifications: function(data){
+		//TODO
+	},
+	getData: function(){
+		return this.data;
+	}
 });
 
-{
-	$(document).ready(function(){
-		ecobici.DataManager.init();
-		ecobici.TopPanel.init();
-		//ecobici.RightPanel.init();
-		//ecobici.LeftPanel.init();
-	})
-};
+$(document).ready(function(){
+  ecobici.DataManager.init();
+  ecobici.TopPanel.init();
+  ecobici.LeftPanel.init();
+  ecobici.RightPanel.init();
+})

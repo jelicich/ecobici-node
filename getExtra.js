@@ -1,11 +1,11 @@
 var express = require('express');
-var ecobici = require('./api/ecobici/lib/ecobici');
+var ecobici = require('./backend/api/ecobici/lib/ecobici');
 var request = require('request');
 var fs = require('fs');
 var app = express();
 
 
-//once the dataObj is loaded init ecobiciController
+
 
 ecobici(function (err, dataObj) {
   if (err) { console.log("An error has occurred: " + err); return; }
@@ -13,14 +13,17 @@ ecobici(function (err, dataObj) {
   getExtraByStation(dataObj.data);
 });
 
+
+
 function getExtraByStation(data){
 
   var arrayStations = [];
+  var bigObj = {};
   var counter = 0;
   var int = setInterval(function(){
-    if(counter == 1) {
+    if(counter == data.length) {
       clearInterval(int);
-      fs.writeFile("./public/assets/json/stations2.json", JSON.stringify(arrayStations), function(err) {
+      fs.writeFile("./backend/resources/stationsObj.json", JSON.stringify(bigObj), function(err) {
           if(err) {
               return console.log(err);
           }
@@ -38,14 +41,15 @@ function getExtraByStation(data){
           Direccion: json.contenido[2].valor,
           AnclajesTotales: json.contenido[5].valor
         }
-        arrayStations.push(obj);
+        bigObj[json.id] = obj
+        //arrayStations.push(obj);
         console.log('pushed to array station ' + data[counter].id);
       } else {
         cb('Fetch error');
       }
       counter++;
     });
-  },5 * 1000);
+  },3 * 1000);
 }
 
 //listen to port

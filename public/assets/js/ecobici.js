@@ -106,50 +106,115 @@ ecobici.LeftPanel = $.extend(true, {}, ecobici.Panel, {
 			}
 		];
 
-		/** DONUT CHART **/
-		var radius = Math.min(width, height) / 3;
-		var outerRadius = radius - radius * 0.07;
-		var innerRadius = radius - radius * 0.20;
-		var archWidth =  radius * 0.20 - radius * 0.07;
+		var radius = Math.min(width, height) / 2;
 
+		//var color = d3.scale.category20();
 		var color = d3.scale.ordinal()
 		    //.range([color1, color2]);
 				.range([d3.rgb('#a30919'), d3.rgb('#31a354')]);
 
-		var canvas = d3.select(container)
-					.append('svg')
-					.attr('id', 'svg-usage')
-					.attr('width', width)
-				  .attr('height', height);
+		var pie = d3.layout.pie()
+		    .value(function(d) { return d.value; })
+		    .sort(null);
 
 		var arc = d3.svg.arc()
-		    .outerRadius(outerRadius)
-		    .innerRadius(innerRadius);
+		    .innerRadius(radius - 50)
+		    .outerRadius(radius - 20);
 
-		var pie = d3.layout.pie()
-		    .sort(null)
-		    .value(function(d) { return d.value; });
+		var svg = d3.select(container).append("svg")
+		    .attr("width", width)
+		    .attr("height", height)
+		  .append("g")
+		    .attr("transform", "translate(" + width / 2 + "," + height / 2 + ")");
 
-		var svg = d3.select('svg#svg-usage')
-		  	.append('g')
-		    .attr('transform', 'translate(' + width / 2 + ',' + height / 2 + ')');
-
-		var g = svg.selectAll('.arc')
-		      .data(pie(data))
+		var g = svg.datum(data).selectAll(".arc")
+		      .data(pie)
 		    .enter().append('g')
-		      .attr('class', 'arc');
+				.attr('class','arc');
 
-		var pathArc = g.append('path').data(data);
+		g.append("path")
+		      .attr("fill", function(d, i) { return color(i); })
+		      .attr("d", arc)
+		      .each(function(d) { this._current = d; }); // store the initial angles
 
-		pathArc.transition()
-            .duration(transitionDuration)
-            .attr('fill', function(d){
-                return color(d.value);
-            })
-            .attrTween('d', arc2Tween);
 
-						//TODO PRINT DONUT
-		//pathArc. TODO TODO TODO TODO
+		//TODO make this the update function
+
+		function change() {
+		     var value = this.value;
+		     clearTimeout(timeout);
+		     pie.value(function(d) { return d[value]; }); // change the value function
+		     path = path.data(pie); // compute the new angles
+		     path.transition().duration(750).attrTween("d", arcTween); // redraw the arcs
+	  }
+
+		function type(d) {
+			  d.apples = +d.apples;
+			  d.oranges = +d.oranges;
+			  return d;
+		}
+
+			// Store the displayed angles in _current.
+			// Then, interpolate from _current to the new angles.
+			// During the transition, _current is updated in-place by d3.interpolate.
+			function arcTween(a) {
+			  var i = d3.interpolate(this._current, a);
+			  this._current = i(0);
+			  return function(t) {
+			    return arc(i(t));
+			  };
+			}
+		// /** DONUT CHART **/
+		// var radius = Math.min(width, height) / 3;
+		// var outerRadius = radius - radius * 0.07;
+		// var innerRadius = radius - radius * 0.20;
+		// var archWidth =  radius * 0.20 - radius * 0.07;
+		//
+		// var color = d3.scale.ordinal()
+		//     //.range([color1, color2]);
+		// 		.range([d3.rgb('#a30919'), d3.rgb('#31a354')]);
+		//
+		// var canvas = d3.select(container)
+		// 			.append('svg')
+		// 			.attr('id', 'svg-usage')
+		// 			.attr('width', width)
+		// 		  .attr('height', height);
+		//
+		// var arc = d3.svg.arc()
+		//     .outerRadius(outerRadius)
+		//     .innerRadius(innerRadius);
+		//
+		// var pie = d3.layout.pie()
+		//     .sort(null)
+		//     .value(function(d) { return d.value; });
+		//
+		// var svg = d3.select('svg#svg-usage')
+		//   	.append('g')
+		//     .attr('transform', 'translate(' + width / 2 + ',' + height / 2 + ')');
+		//
+		// var g = svg.selectAll('.arc')
+		//       .data(pie(data))
+		//     .enter().append('g')
+		//       .attr('class', 'arc');
+		//
+		// var pathArc = g.append('path').data(data);
+		//
+		// pathArc.transition()
+    //         .duration(transitionDuration)
+    //         .attr('fill', function(d){
+    //             return color(d.value);
+    //         })
+    //         .attrTween('d', arc2Tween);
+		//
+		// pathArc.enter().append('svg:path')
+		// 		//.attr('transform', config.translate)
+		// 		.attr('fill', function(d){
+		// 				return color(d.value);
+		// 		})
+		// 		.attr('d', arc)
+		// 		.each(function(d){
+		// 				this._current = d.value;
+		// 		});
 
 		//text
 
@@ -214,6 +279,7 @@ ecobici.LeftPanel = $.extend(true, {}, ecobici.Panel, {
               return arc(obj, indx);
           }
       };
+			ecobici.LeftPanel.isUsageRendered = true;
 	},
 	updateUsage: function(data){
 		var t = this;
